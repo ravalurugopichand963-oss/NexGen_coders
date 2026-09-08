@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Girls Safe Travel</title>
+
+    <!-- QR CAMERA SCANNER -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>🛡️ Girls Safe Travel</h1>
+        <p>Safe Journey • Smart Protection</p>
+    </div>
+
+    <div class="progress" id="progress">
+        Phase 1 of 5
+    </div>
+
+
+    <!-- =================================================
+         PHASE 1 - DRIVER QR
+    ================================================== -->
+
+    <div class="page active" id="page1">
+
+        <div class="card">
+
+            <h2>📷 Phase 1: Scan Driver QR</h2>
+
+            <p>
+                Scan the QR code displayed by the driver.
+            </p>
+
+            <button
+                class="scan"
+                onclick="startScanner()"
+            >
+                📷 OPEN CAMERA & SCAN DRIVER QR
+            </button>
+
+            <!-- CAMERA -->
+            <div id="reader"></div>
+
+            <div class="info driver">
+
+                <b>🚗 Driver Details</b>
+
+                <br><br>
+
+                <b>Driver Name:</b>
+                <span id="driverName">
+                    Not scanned
+                </span>
+
+                <br>
+
+                <b>Driver Phone:</b>
+                <span id="driverPhone">
+                    Not scanned
+                </span>
+
+                <br>
+
+                <b>Vehicle Number:</b>
+                <span id="vehicleNumber">
+                    Not scanned
+                </span>
+
+                <br>
+
+                <b>Alternate Number:</b>
+                <span id="alternateNumber">
+                    Not scanned
+                </span>
+
+                <br>
+
+                <b>Vehicle Type:</b>
+                <span id="vehicleType">
+                    Not scanned
+                </span>
+
+            </div>
+
+            <button
+                class="next"
+                onclick="goToPage(2)"
+            >
+                Continue →
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =================================================
+         PHASE 2 - PASSENGER
+    ================================================== -->
+
+    <div class="page" id="page2">
+
+        <div class="card">
+
+            <h2>👤 Phase 2: Passenger Details</h2>
+
+            <input
+                type="text"
+                id="passengerName"
+                placeholder="Passenger name"
+            >
+
+            <input
+                type="tel"
+                id="passengerPhone"
+                placeholder="Passenger mobile number"
+            >
+
+            <input
+                type="number"
+                id="passengerCount"
+                min="1"
+                max="10"
+                placeholder="Number of passengers"
+            >
+
+            <input
+                type="tel"
+                id="emergencyNumber"
+                placeholder="Passenger emergency number"
+            >
+
+            <button
+                class="back"
+                onclick="goToPage(1)"
+            >
+                ← Back
+            </button>
+
+            <button
+                class="next"
+                onclick="goToPage(3)"
+            >
+                Continue →
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =================================================
+         PHASE 3 - JOURNEY
+    ================================================== -->
+
+    <div class="page" id="page3">
+
+        <div class="card">
+
+            <h2>📍 Phase 3: Journey Details</h2>
+
+            <input
+                type="text"
+                id="startLocation"
+                placeholder="Starting location"
+            >
+
+            <input
+                type="text"
+                id="destination"
+                placeholder="Destination"
+            >
+
+            <button onclick="calculateRoute()">
+                🗺️ CALCULATE ROUTE
+            </button>
+
+            <div
+                class="routeBox"
+                id="routeInfo"
+            >
+                Enter source and destination.
+            </div>
+
+            <div
+                class="locationBox"
+                id="locationInfo"
+            >
+                📍 Current location not detected.
+            </div>
+
+            <button
+                class="next"
+                onclick="startJourney()"
+            >
+                🚗 START JOURNEY
+            </button>
+
+            <button
+                class="back"
+                onclick="goToPage(2)"
+            >
+                ← Back
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =================================================
+         PHASE 4 - SAFETY
+    ================================================== -->
+
+    <div class="page" id="page4">
+
+        <div class="card">
+
+            <h2>🚨 Phase 4: Journey Safety</h2>
+
+            <div
+                class="warningBox"
+                id="routeStatus"
+            >
+                🟢 Route monitoring active.
+            </div>
+
+
+            <!-- JOURNEY INFORMATION -->
+
+            <div class="routeBox">
+
+                <b>📍 SOURCE</b>
+
+                <br>
+
+                <span id="displaySource">
+                    Not available
+                </span>
+
+                <br><br>
+
+                <b>🏁 DESTINATION</b>
+
+                <br>
+
+                <span id="displayDestination">
+                    Not available
+                </span>
+
+                <br><br>
+
+                <b>📏 TOTAL DISTANCE</b>
+
+                <br>
+
+                <span id="displayDistance">
+                    Not available
+                </span>
+
+                <br><br>
+
+                <b>⏱️ ESTIMATED TIME</b>
+
+                <br>
+
+                <span id="displayTime">
+                    Not available
+                </span>
+
+            </div>
+
+
+            <!-- LIVE LOCATION -->
+
+            <div class="locationBox">
+
+                <b>📡 LIVE LOCATION</b>
+
+                <br><br>
+
+                <span id="liveLatitude">
+                    Latitude: Not available
+                </span>
+
+                <br>
+
+                <span id="liveLongitude">
+                    Longitude: Not available
+                </span>
+
+                <br>
+
+                <span id="liveStatus">
+                    Waiting for GPS...
+                </span>
+
+                <a
+                    id="liveMapLink"
+                    class="mapLink"
+                    target="_blank"
+                    style="display:none"
+                >
+                    🗺️ OPEN LIVE LOCATION
+                </a>
+
+            </div>
+
+
+            <!-- DETAILS -->
+
+            <div class="info">
+
+                <b>👤 Passenger:</b>
+                <span id="wrongPassenger">
+                    Not available
+                </span>
+
+                <br>
+
+                <b>📱 Passenger Mobile:</b>
+                <span id="wrongPassengerPhone">
+                    Not available
+                </span>
+
+                <br>
+
+                <b>🚗 Driver:</b>
+                <span id="wrongDriver">
+                    Not available
+                </span>
+
+                <br>
+
+                <b>📞 Driver Phone:</b>
+                <span id="wrongPhone">
+                    Not available
+                </span>
+
+                <br>
+
+                <b>🚘 Vehicle:</b>
+                <span id="wrongVehicle">
+                    Not available
+                </span>
+
+                <br>
+
+                <b>Vehicle Type:</b>
+                <span id="wrongVehicleType">
+                    Not available
+                </span>
+
+            </div>
+
+
+            <!-- EMERGENCY 112 -->
+
+            <button
+                class="emergency"
+                onclick="emergencyCall()"
+            >
+                🚨 EMERGENCY — CALL 112
+            </button>
+
+
+            <!-- BACKUP -->
+
+            <button
+                class="callBackup"
+                onclick="callPassengerEmergency()"
+            >
+                📞 CALL PASSENGER EMERGENCY NUMBER
+            </button>
+
+
+            <!-- SOS -->
+
+            <button
+                class="sos"
+                onclick="SOS()"
+            >
+                🚨 SEND SOS ALERT
+            </button>
+
+
+            <button
+                class="safe"
+                onclick="goToPage(5)"
+            >
+                I Reached Safely →
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =================================================
+         PHASE 5
+    ================================================== -->
+
+    <div class="page" id="page5">
+
+        <div class="card">
+
+            <h2>✅ Phase 5: Safely Reached</h2>
+
+            <p>
+                Have you reached your destination safely?
+            </p>
+
+            <button
+                class="safe"
+                onclick="safeReached()"
+            >
+                ✅ YES, I REACHED SAFELY
+            </button>
+
+            <div
+                class="info"
+                id="safeMessage"
+            >
+                Waiting for safe arrival confirmation...
+            </div>
+
+            <button
+                class="back"
+                onclick="goToPage(4)"
+            >
+                ← Back
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+
+    window.addEventListener("load", function () {
+
+        navigator.serviceWorker
+            .register("./sw.js")
+            .then(function (registration) {
+
+                console.log(
+                    "✅ Service Worker registered:",
+                    registration.scope
+                );
+
+            })
+            .catch(function (error) {
+
+                console.error(
+                    "❌ Service Worker registration failed:",
+                    error
+                );
+
+            });
+
+    });
+
+}
+</script>
+</body>
+</html>
