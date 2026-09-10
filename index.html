@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Raksha Ride — Safe Journey. Smart Protection.</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="app">
+
+  <!-- ============ LANDING ============ -->
+  <section id="landing" class="screen active">
+    <div class="hero">
+      <div class="shield-hero">🛡️</div>
+      <h1 data-i18n="appName">Raksha Ride</h1>
+      <p class="core-phrase" data-i18n="corePhrase">when a ride becomes a risk</p>
+      <span class="tagline" data-i18n="tagline">Safe Journey. Smart Protection.</span>
+      <p class="subtitle" data-i18n="heroDesc">A smart public transport safety platform designed to protect women throughout their journey.</p>
+      <div class="hero-visual">👧 🚗 📍 🛡️ 📱</div>
+    </div>
+    <button class="btn-primary mb" onclick="showScreen(State.session?'passenger-dashboard':'login')" data-i18n="startJourney">Start Journey</button>
+    <div class="btn-row mb">
+      <button class="btn-secondary" onclick="showScreen('login')" data-i18n="login">Login</button>
+      <button class="btn-secondary" onclick="showScreen('register')" data-i18n="register">Register</button>
+    </div>
+    <button class="btn-ghost" onclick="showScreen('language-select')">🌐 <span data-i18n="chooseLanguage">Choose Your Language</span></button>
+  </section>
+
+  <!-- ============ LANGUAGE SELECT ============ -->
+  <section id="language-select" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('landing')">←</button>
+      <h2 data-i18n="chooseLanguage">Choose Your Language</h2>
+      <span></span>
+    </div>
+    <div id="langOptionsMain"></div>
+    <button class="btn-primary mt" id="applyLangMainBtn" data-i18n="applyLanguage">Apply Language</button>
+  </section>
+
+  <!-- ============ REGISTER ============ -->
+  <section id="register" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('landing')">←</button>
+      <h2 data-i18n="register">Register</h2><span></span>
+    </div>
+    <form id="registerForm">
+      <label data-i18n="fullName">Full Name</label>
+      <input name="fullName" required>
+      <label data-i18n="phone">Phone Number</label>
+      <input name="phone" type="tel" required>
+      <label data-i18n="email">Email</label>
+      <input name="email" type="email" required>
+      <label data-i18n="password">Password</label>
+      <input name="password" type="password" minlength="6" required>
+      <label data-i18n="role">Role</label>
+      <select name="role">
+        <option value="passenger" data-i18n="passenger">Passenger</option>
+        <option value="parent" data-i18n="parent">Parent / Trusted Contact</option>
+        <option value="driver" data-i18n="driver">Driver</option>
+      </select>
+      <label data-i18n="guardianName">Parent/Guardian Name</label>
+      <input name="guardianName">
+      <label data-i18n="guardianPhone">Parent/Guardian Phone</label>
+      <input name="guardianPhone" type="tel">
+      <label data-i18n="emergencyContact">Emergency Contact</label>
+      <input name="emergencyContact" type="tel">
+      <button type="submit" class="btn-primary mt" data-i18n="signUp">Sign Up</button>
+    </form>
+    <p class="center mt small link" onclick="showScreen('login')" data-i18n="alreadyHaveAccount">Already have an account? Login</p>
+  </section>
+
+  <!-- ============ LOGIN ============ -->
+  <section id="login" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('landing')">←</button>
+      <h2 data-i18n="welcomeBack">Welcome Back</h2><span></span>
+    </div>
+    <form id="loginForm">
+      <label data-i18n="email">Email</label>
+      <input name="email" type="email" required>
+      <label data-i18n="password">Password</label>
+      <input name="password" type="password" required>
+      <button type="submit" class="btn-primary mt" data-i18n="login">Login</button>
+    </form>
+    <p class="center mt small link" onclick="showScreen('forgot')" data-i18n="forgotPassword">Forgot Password</p>
+    <p class="center small link" onclick="showScreen('register')" data-i18n="noAccount">Don't have an account? Register</p>
+  </section>
+
+  <!-- ============ FORGOT PASSWORD ============ -->
+  <section id="forgot" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('login')">←</button>
+      <h2 data-i18n="forgotPassword">Forgot Password</h2><span></span>
+    </div>
+    <form id="forgotForm">
+      <label data-i18n="email">Email</label>
+      <input id="resetEmail" type="email" required>
+      <button type="submit" class="btn-primary mt" data-i18n="sendResetLink">Send Reset Link</button>
+    </form>
+  </section>
+
+  <!-- ============ PASSENGER DASHBOARD ============ -->
+  <section id="passenger-dashboard" class="screen">
+    <div class="topbar">
+      <div>
+        <p class="small" data-i18n="goodMorning">Good Morning</p>
+        <h1 id="greetingName">—</h1>
+      </div>
+      <button class="icon-btn" onclick="showScreen('notifications'); loadNotifications()">🔔</button>
+    </div>
+    <div id="nightModeBanner" class="card hidden" style="border-color:rgba(234,179,8,0.3)">
+      <span class="status-pill status-warn">🌙 <span data-i18n="nightSafetyMode">Night Safety Mode</span></span>
+      <p class="mt small" data-i18n="extraMonitoring">Extra journey monitoring active.</p>
+    </div>
+    <div class="card card-glow">
+      <span class="status-pill status-safe"><span class="dot dot-pulse"></span> <span data-i18n="safe">SAFE</span></span>
+      <p class="mt" data-i18n="protectionActive">Your journey protection is active.</p>
+    </div>
+
+    <div id="dashActiveJourneyCard" class="card hidden">
+      <h2 data-i18n="liveJourney">Live Journey</h2>
+      <p class="small">A journey is currently active.</p>
+      <button class="btn-primary mt" onclick="goToLiveTracking()" data-i18n="viewLiveLocation">View Live Location</button>
+    </div>
+
+    <div class="grid-2">
+      <button class="action-tile" onclick="startQrScanner()">
+        <span class="icon">🚗</span><span class="label" data-i18n="startJourney">Start Journey</span>
+      </button>
+      <button class="action-tile" onclick="goToLiveTracking()">
+        <span class="icon">📍</span><span class="label" data-i18n="liveJourney">Live Journey</span>
+      </button>
+      <button class="action-tile" onclick="showScreen('parent-dashboard'); loadParentDashboard()">
+        <span class="icon">👨‍👩‍👧</span><span class="label" data-i18n="familyTracking">Family Tracking</span>
+      </button>
+      <button class="action-tile" onclick="openEmergencyScreen()">
+        <span class="icon">🆘</span><span class="label" data-i18n="emergency">Emergency</span>
+      </button>
+      <button class="action-tile" onclick="showScreen('journey-history')">
+        <span class="icon">📋</span><span class="label" data-i18n="journeyHistory">Journey History</span>
+      </button>
+      <button class="action-tile" onclick="showScreen('profile')">
+        <span class="icon">👤</span><span class="label" data-i18n="profile">Profile</span>
+      </button>
+    </div>
+    <button class="btn-ghost mt" onclick="enterDemoMode()">🎬 <span data-i18n="demoMode">Demo Mode</span></button>
+  </section>
+
+  <!-- ============ DRIVER VERIFY ============ -->
+  <section id="driver-verify" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="stopQrScanner(); showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="scanQr">Scan Driver / Vehicle QR</h2><span></span>
+    </div>
+    <div id="qr-reader-wrap" class="card">
+      <div id="qr-reader"></div>
+      <p class="small center mt">Point your camera at the vehicle's QR code.</p>
+      <button class="btn-ghost mt" onclick="stopQrScanner(); renderDemoDriver()">Use Demo Driver Instead</button>
+    </div>
+    <div id="qr-result" class="card card-glow hidden">
+      <span class="demo-badge hidden" id="resultDemoBadge" data-i18n="demoMode">Demo Mode</span>
+      <h2 class="mt" data-i18n="driverVerified">Driver Verified</h2>
+      <div class="divider"></div>
+      <div class="row"><span class="small">Name</span><strong id="resultDriverName">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="phone">Phone</span><strong id="resultDriverPhone">—</strong></div>
+      <div class="row mt"><span class="small">Vehicle</span><strong id="resultVehicleNumber">—</strong></div>
+      <div class="row mt"><span class="small">Type</span><strong id="resultVehicleType">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="safetyRating">Safety Rating</span><strong id="resultRating">—</strong></div>
+      <div class="divider"></div>
+      <span class="status-pill status-safe">🟢 <span data-i18n="identityVerified">Identity Verified</span></span>
+      <div style="height:8px"></div>
+      <span class="status-pill status-safe">🟢 <span data-i18n="vehicleVerified">Vehicle Verified</span></span>
+      <div style="height:8px"></div>
+      <span class="status-pill status-safe">🟢 <span data-i18n="licenseVerified">License Verified</span></span>
+      <button class="btn-primary mt" onclick="confirmDriver()" data-i18n="confirmDriver">Confirm Driver</button>
+    </div>
+  </section>
+
+  <!-- ============ JOURNEY PLAN ============ -->
+  <section id="journey-plan" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="journey">Journey</h2><span></span>
+    </div>
+    <form id="planForm">
+      <label data-i18n="from">From</label>
+      <input name="from" required placeholder="Kamalapuram">
+      <label data-i18n="to">To</label>
+      <input name="to" required placeholder="Kadapa">
+      <button type="submit" class="btn-primary mt" data-i18n="startJourney">Start Journey</button>
+    </form>
+  </section>
+
+  <!-- ============ JOURNEY STARTED ============ -->
+  <section id="journey-started" class="screen">
+    <div class="card card-glow center">
+      <div style="font-size:2.4rem">🚗</div>
+      <h1 data-i18n="journeyStarted">Journey Started</h1>
+      <p class="mt" data-i18n="driverStarted">has started her journey.</p>
+    </div>
+    <div class="card">
+      <div class="row"><span class="small">Vehicle</span><strong id="startedVehicle">—</strong></div>
+      <div class="row mt"><span class="small">Driver</span><strong id="startedDriver">—</strong></div>
+      <div class="row mt" data-i18n="from"><span class="small">From</span><strong id="startedFrom">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="to">To</span><strong id="startedTo">—</strong></div>
+    </div>
+    <span class="status-pill status-safe"><span class="dot dot-pulse"></span> <span data-i18n="journeyMonitoringActive">Journey Monitoring ACTIVE</span></span>
+    <button class="btn-primary mt" onclick="goToLiveTracking()" data-i18n="viewLiveLocation">View Live Location</button>
+  </section>
+
+  <!-- ============ LIVE TRACKING ============ -->
+  <section id="live-tracking" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="liveJourney">Live Journey</h2>
+      <span class="status-pill status-safe"><span class="dot dot-pulse"></span> <span data-i18n="journeySafe">Journey Safe</span></span>
+    </div>
+    <div id="locationWarning" class="card hidden" style="border-color:rgba(234,179,8,0.4)">
+      <span class="status-pill status-warn">⚠️</span>
+      <p class="mt small" data-i18n="locationPermissionNeeded">Location permission is required for live tracking. Please enable location access and try again.</p>
+    </div>
+    <div class="map-box"><div id="track-map" style="height:100%"></div></div>
+    <div class="card">
+      <span class="status-pill status-safe">🛡️ <span data-i18n="protectionActive">Protection Active</span></span>
+      <div class="row mt"><span class="small" data-i18n="eta">ETA</span><strong>18 min</strong></div>
+      <div class="row mt"><span class="small" data-i18n="routeStatus">Route Status</span><strong data-i18n="journeyMonitoringActive">Journey Monitoring ACTIVE</strong></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="simulateRouteAlert('deviation')" data-i18n="routeDeviation">Route Deviation</button>
+      <button class="btn-secondary" onclick="simulateRouteAlert('unplanned_stop')" data-i18n="unexpectedStop">Unexpected Stop</button>
+    </div>
+    <button class="btn-safe mt" onclick="markArrivedSafely()" data-i18n="iArrivedSafely">I Arrived Safely</button>
+    <button class="btn-sos mt" onclick="openEmergencyScreen()">🆘 <span data-i18n="sos">Emergency</span></button>
+  </section>
+
+  <!-- ---- Safety check-in modal ---- -->
+  <div id="checkin-modal" class="card card-glow hidden" style="position:fixed;bottom:100px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;z-index:80">
+    <h2 data-i18n="safetyCheck">Are you safe?</h2>
+    <div class="btn-row mt">
+      <button class="btn-safe" onclick="respondCheckin('safe')">😊 <span data-i18n="imSafe">I'm Safe</span></button>
+      <button class="btn-primary" onclick="respondCheckin('help_needed')" style="background:linear-gradient(135deg,var(--crimson),#b3122a)">🆘 <span data-i18n="needHelp">I Need Help</span></button>
+    </div>
+  </div>
+
+  <!-- ---- Route deviation modal ---- -->
+  <div id="deviation-modal" class="card card-glow hidden" style="position:fixed;bottom:100px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;z-index:80">
+    <span class="status-pill status-warn">⚠️ <span data-i18n="routeDeviation">Route Deviation</span></span>
+    <p class="mt" data-i18n="areYouSafe">Are you safe?</p>
+    <div class="btn-row mt">
+      <button class="btn-safe" onclick="resolveRouteAlert('deviation-modal','safe')">🟢 <span data-i18n="imSafe">I'm Safe</span></button>
+      <button class="btn-primary" onclick="resolveRouteAlert('deviation-modal','help')" style="background:linear-gradient(135deg,var(--crimson),#b3122a)">🆘 <span data-i18n="needHelp">I Need Help</span></button>
+    </div>
+    <button class="btn-ghost mt" onclick="callNumber('112')">📞 <span data-i18n="call112">Call 112</span></button>
+  </div>
+
+  <!-- ---- Unplanned stop modal ---- -->
+  <div id="stop-modal" class="card card-glow hidden" style="position:fixed;bottom:100px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;z-index:80">
+    <span class="status-pill status-warn">⚠️ <span data-i18n="unexpectedStop">Unexpected Stop</span></span>
+    <p class="mt" data-i18n="areYouSafe">Are you safe?</p>
+    <div class="btn-row mt">
+      <button class="btn-safe" onclick="resolveRouteAlert('stop-modal','safe')">😊 <span data-i18n="imSafe">I'm Safe</span></button>
+      <button class="btn-primary" onclick="resolveRouteAlert('stop-modal','help')" style="background:linear-gradient(135deg,var(--crimson),#b3122a)">🆘 <span data-i18n="needHelp">I Need Help</span></button>
+    </div>
+    <button class="btn-ghost mt" onclick="callNumber('112')">📞 <span data-i18n="call112">Call 112</span></button>
+  </div>
+
+  <!-- ============ EMERGENCY ============ -->
+  <section id="emergency" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen(State.activeJourney?'live-tracking':'passenger-dashboard')">←</button>
+      <h2 data-i18n="emergencyHelp">Emergency Help</h2><span></span>
+    </div>
+    <button class="btn-sos mb" onclick="sendSOS()">🆘 <span data-i18n="sos">SOS</span></button>
+    <div class="btn-row mb">
+      <button class="btn-secondary" onclick="callNumber('112')">📞 <span data-i18n="call112">Call 112</span></button>
+      <button class="btn-secondary" onclick="callNumber(State.profile?.emergency_contact||'')">📞 <span data-i18n="callTrustedContact">Call Trusted Contact</span></button>
+    </div>
+    <div class="btn-row mb">
+      <button class="btn-secondary" onclick="sendSOS()">📍 <span data-i18n="sendSosLocation">Send SOS Location</span></button>
+      <button class="btn-secondary" onclick="sendSOS()">📍 <span data-i18n="shareLiveLocation">Share Live Location</span></button>
+    </div>
+    <div class="btn-row mb">
+      <button class="btn-secondary" onclick="showScreen('nearby-help')">🚓 <span data-i18n="findPolice">Find Police</span></button>
+      <button class="btn-secondary" onclick="showScreen('nearby-help')">🏥 <span data-i18n="findHospital">Find Hospital</span></button>
+    </div>
+    <button class="btn-ghost" onclick="startVoiceSos()">🎙️ Voice SOS ("help me")</button>
+  </section>
+
+  <!-- ============ SOS ACTIVE ============ -->
+  <section id="sos-active" class="screen">
+    <div class="card card-glow">
+      <span class="status-pill status-danger"><span class="dot dot-pulse"></span> <span data-i18n="active">ACTIVE</span></span>
+      <h1 class="mt">🆘 <span data-i18n="appName">Raksha Ride</span> SOS</h1>
+      <div class="divider"></div>
+      <div class="row"><span class="small" data-i18n="passenger">Passenger</span><strong id="sosActivePassenger">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="vehicle">Vehicle</span><strong id="sosActiveVehicle">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="time">Time</span><strong id="sosActiveTime">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="emergencyStatus">Emergency Status</span><strong style="color:var(--danger)" data-i18n="active">ACTIVE</strong></div>
+    </div>
+    <button class="btn-primary mb" onclick="callNumber('112')">📞 <span data-i18n="call112">Call 112</span></button>
+    <button class="btn-secondary mb" onclick="callNumber(State.profile?.emergency_contact||'')">📞 <span data-i18n="callTrustedContact">Call Trusted Contact</span></button>
+    <button class="btn-secondary mb" onclick="playAlarm()">🔊 <span data-i18n="emergencyAlarm">Emergency Alarm</span></button>
+    <p id="alarmActiveNote" class="small center hidden">Alarm playing…</p>
+    <button class="btn-ghost" onclick="stopAlarmSound()" data-i18n="stopAlarm">Stop Alarm</button>
+  </section>
+
+  <!-- ============ NEARBY HELP ============ -->
+  <section id="nearby-help" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('emergency')">←</button>
+      <h2 data-i18n="nearbyHelp">Nearby Help</h2><span></span>
+    </div>
+    <a class="card" style="display:block;text-decoration:none;color:inherit" href="https://www.google.com/maps/search/police+station" target="_blank">🚓 <span data-i18n="policeStation">Police Station</span></a>
+    <a class="card" style="display:block;text-decoration:none;color:inherit" href="https://www.google.com/maps/search/hospital" target="_blank">🏥 <span data-i18n="hospital">Hospital</span></a>
+    <a class="card" style="display:block;text-decoration:none;color:inherit" href="https://www.google.com/maps/search/police+help+center" target="_blank">🛡️ <span data-i18n="safePlace">Safe Place</span></a>
+    <a class="card" style="display:block;text-decoration:none;color:inherit" href="https://www.google.com/maps/search/public+help+centre" target="_blank">🏢 <span data-i18n="helpCentre">Help Centre</span></a>
+  </section>
+
+  <!-- ============ SAFE ARRIVAL ============ -->
+  <section id="safe-arrival" class="screen">
+    <div class="card card-glow center">
+      <div style="font-size:2.6rem">❤️</div>
+      <h1 data-i18n="safeArrival">Safe Arrival</h1>
+      <p class="mt" data-i18n="reachedSafely">You have reached safely.</p>
+      <p data-i18n="journeyCompleted">Journey completed successfully.</p>
+      <span class="status-pill status-safe mt">🟢 <span data-i18n="protectionCompleted">Protection Completed</span></span>
+    </div>
+    <div class="timeline card">
+      <div class="timeline-item done"><span class="t-label">✓ <span data-i18n="driverVerified">Driver Verified</span></span></div>
+      <div class="timeline-item done"><span class="t-label">✓ <span data-i18n="journeyStarted">Journey Started</span></span></div>
+      <div class="timeline-item done"><span class="t-label">✓ Parent Notified</span></div>
+      <div class="timeline-item done"><span class="t-label">✓ Live Tracking Active</span></div>
+      <div class="timeline-item done"><span class="t-label">✓ Safety Check Completed</span></div>
+      <div class="timeline-item done"><span class="t-label">✓ Route Monitored</span></div>
+      <div class="timeline-item done"><span class="t-label">✓ Destination Reached</span></div>
+      <div class="timeline-item done"><span class="t-label">✓ Safe Arrival Confirmed</span></div>
+    </div>
+    <button class="btn-primary" onclick="goToRating()" data-i18n="rateYourDriver">Rate Your Driver</button>
+  </section>
+
+  <!-- ============ DRIVER RATING ============ -->
+  <section id="driver-rating" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="rateYourDriver">Rate Your Driver</h2><span></span>
+    </div>
+    <div id="star-row" class="star-row"></div>
+    <form id="ratingForm">
+      <label data-i18n="comments">Comments</label>
+      <textarea id="ratingComment"></textarea>
+      <button type="submit" class="btn-primary mt" data-i18n="submit">Submit</button>
+    </form>
+    <button class="btn-ghost mt" onclick="goToIncidentReport()" data-i18n="reportSafetyConcern">Report Safety Concern</button>
+  </section>
+
+  <!-- ============ INCIDENT REPORT ============ -->
+  <section id="incident-report" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="reportSafetyConcern">Report Safety Concern</h2><span></span>
+    </div>
+    <form id="incidentForm">
+      <label data-i18n="role">Category</label>
+      <select name="category">
+        <option value="driver_misconduct" data-i18n="driverMisconduct">Driver Misconduct</option>
+        <option value="harassment" data-i18n="harassment">Harassment</option>
+        <option value="suspicious_behaviour" data-i18n="suspiciousBehaviour">Suspicious Behaviour</option>
+        <option value="unsafe_route" data-i18n="unsafeRoute">Unsafe Route</option>
+        <option value="unprofessional" data-i18n="unprofessional">Unprofessional Behaviour</option>
+        <option value="other" data-i18n="otherConcern">Other Safety Concern</option>
+      </select>
+      <label data-i18n="comments">Description</label>
+      <textarea name="description" required></textarea>
+      <button type="submit" class="btn-primary mt" data-i18n="submit">Submit</button>
+    </form>
+  </section>
+
+  <!-- ============ JOURNEY HISTORY ============ -->
+  <section id="journey-history" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="journeyHistory">Journey History</h2><span></span>
+    </div>
+    <p class="small center">Your past journeys will appear here once completed.</p>
+  </section>
+
+  <!-- ============ PARENT DASHBOARD ============ -->
+  <section id="parent-dashboard" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <h2>❤️ <span data-i18n="familySafety">Family Safety</span></h2>
+      <button class="icon-btn" onclick="showScreen('notifications'); loadNotifications()">🔔</button>
+    </div>
+    <div id="parentJourneyCard" class="card card-glow hidden">
+      <span class="status-pill status-safe"><span class="dot dot-pulse"></span> <span data-i18n="safe">SAFE</span></span>
+      <div class="row mt"><span class="small" data-i18n="passenger">Passenger</span><strong id="parentPassengerName">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="vehicle">Vehicle</span><strong id="parentVehicle">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="destination">Destination</span><strong id="parentDestination">—</strong></div>
+      <div class="btn-row mt">
+        <button class="btn-secondary" onclick="goToLiveTracking()" data-i18n="viewLocation">View Location</button>
+        <button class="btn-secondary" onclick="callNumber('')" data-i18n="call">Call</button>
+      </div>
+      <button class="btn-primary mt" onclick="openEmergencyScreen()" data-i18n="emergency">Emergency</button>
+    </div>
+    <p id="parentEmptyState" class="small center">No active journey right now.</p>
+  </section>
+
+  <!-- ============ NOTIFICATIONS ============ -->
+  <section id="notifications" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="notifications">Notifications</h2><span></span>
+    </div>
+    <div id="notifList"></div>
+  </section>
+
+  <!-- ============ PROFILE / SETTINGS ============ -->
+  <section id="profile" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <button class="icon-btn" onclick="showScreen('passenger-dashboard')">←</button>
+      <h2 data-i18n="profile">Profile</h2><span></span>
+    </div>
+    <div class="card">
+      <div class="row"><span class="small" data-i18n="fullName">Full Name</span><strong id="profileName">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="phone">Phone</span><strong id="profilePhone">—</strong></div>
+      <div class="row mt"><span class="small" data-i18n="role">Role</span><strong id="profileRole">—</strong></div>
+    </div>
+    <h2 class="mt" data-i18n="settings">Settings</h2>
+    <p class="small mb" data-i18n="chooseLanguage">Choose Your Language</p>
+    <div id="langOptionsSettings"></div>
+    <button class="btn-secondary mt" id="applyLangSettingsBtn" data-i18n="applyLanguage">Apply Language</button>
+    <button class="btn-ghost mt" onclick="handleLogout()" data-i18n="logout">Logout</button>
+  </section>
+
+  <!-- ============ ADMIN DASHBOARD ============ -->
+  <section id="admin-dashboard" class="screen">
+    <div class="topbar" style="padding-left:0">
+      <h2>🛡️ <span data-i18n="adminDashboard">Raksha Ride Admin</span></h2>
+      <button class="icon-btn" onclick="handleLogout()">⎋</button>
+    </div>
+    <div class="grid-2 mb">
+      <div class="card"><div class="stat-num" id="statActiveJourneys">0</div><div class="stat-label" data-i18n="activeJourneys">Active Journeys</div></div>
+      <div class="card"><div class="stat-num" id="statSafeJourneys">0</div><div class="stat-label" data-i18n="safeJourneys">Safe Journeys</div></div>
+      <div class="card"><div class="stat-num" id="statSosAlerts" style="color:var(--danger)">0</div><div class="stat-label" data-i18n="sosAlerts">SOS Alerts</div></div>
+      <div class="card"><div class="stat-num" id="statVerifiedDrivers">0</div><div class="stat-label" data-i18n="verifiedDrivers">Verified Drivers</div></div>
+      <div class="card"><div class="stat-num" id="statIncidents">0</div><div class="stat-label" data-i18n="reportedIncidents">Reported Incidents</div></div>
+    </div>
+    <h2 data-i18n="sosAlerts">SOS Alerts</h2>
+    <div id="adminSosList"></div>
+  </section>
+
+  <!-- ============ BOTTOM NAV ============ -->
+  <nav class="bottom-nav" id="bottom-nav" style="display:none">
+    <button class="nav-item" data-screen="passenger-dashboard" onclick="showScreen(State.profile?.role==='admin'?'admin-dashboard':(State.profile?.role==='parent'?'parent-dashboard':'passenger-dashboard'))">
+      <span class="nav-icon">🏠</span><span data-i18n="home">Home</span>
+    </button>
+    <button class="nav-item" data-screen="journey-plan" onclick="startQrScanner()">
+      <span class="nav-icon">🚗</span><span data-i18n="journey">Journey</span>
+    </button>
+    <button class="nav-item" data-screen="live-tracking" onclick="goToLiveTracking()">
+      <span class="nav-icon">📍</span><span data-i18n="track">Track</span>
+    </button>
+    <button class="nav-item sos-nav" data-screen="emergency" onclick="openEmergencyScreen()">
+      <span class="nav-icon">🆘</span><span data-i18n="sos">SOS</span>
+    </button>
+    <button class="nav-item" data-screen="profile" onclick="showScreen('profile')">
+      <span class="nav-icon">👤</span><span data-i18n="profile">Profile</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ============ SCRIPTS ============ -->
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="supabase.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
