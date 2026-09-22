@@ -194,7 +194,7 @@ const State = {
   lastMovementPos: null, lastMovementTime: null, lastGpsUpdateTime: null,
   deviationAlerted: false, stopAlerted: false, destinationReached: false,
   pendingAlert: null, activeSosId: null, gpsWatchdog: null,
-  emergencyContacts: [],
+  emergencyContacts: [], currentGpsCoords: null,
 };
 
 function t(key) { return (translations[State.lang] && translations[State.lang][key]) || translations.en[key] || key; }
@@ -404,6 +404,7 @@ let html5QrCode = null;
 
 async function startQrScanner() {
   showScreen("driver-verify");
+  State.demoMode = false; State.currentGpsCoords = null;
   document.getElementById("qr-result").classList.add("hidden");
   document.getElementById("qr-reader-wrap").classList.remove("hidden");
   try {
@@ -458,17 +459,54 @@ function renderDriverResult(vehicle, driver, isDemo) {
   const allVerified = driver.identity_verified && vehicle.verified && driver.license_verified;
   document.getElementById("verificationWarning").classList.toggle("hidden", allVerified || isDemo);
 }
-function confirmDriver() { showScreen("journey-plan"); setTimeout(initPlanMap, 50); }
+function confirmDriver() { showScreen("journey-plan"); setTimeout(() => { initPlanMap(); prefillCurrentLocation(); }, 50); }
 
 // ------------------------------------------------------------
 // 9. JOURNEY PLANNING + START (real GPS required, demo explicit)
 // ------------------------------------------------------------
-let planMap;
+let planMap, planMarker;
 function initPlanMap() {
   const mapEl = document.getElementById("plan-map");
   if (!mapEl || mapEl._leaflet_id) return;
   planMap = L.map("plan-map").setView([20.5937, 78.9629], 5);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(planMap);
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    const data = await res.json();
+    return data && data.display_name ? data.display_name : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch (e) { return `${lat.toFixed(5)}, ${lng.toFixed(5)}`; }
+}
+
+// Shows the passenger their REAL detected address before they even tap
+// Start Journey — so it's never a silent/ambiguous fallback.
+async function prefillCurrentLocation() {
+  const note = document.getElementById("detectedLocationNote");
+  const fromInput = document.querySelector("#planForm [name=from]");
+  if (State.demoMode) {
+    note.textContent = "⚠️ " + t("demoGpsNotice");
+    note.style.color = "var(--warn)";
+    if (fromInput) fromInput.value = DEMO_COORDS.label;
+    State.currentGpsCoords = { ...DEMO_COORDS, ts: Date.now() };
+    return;
+  }
+  note.textContent = "Detecting your exact location…";
+  note.style.color = "";
+  try {
+    const coords = await getCurrentPosition();
+    State.currentGpsCoords = { ...coords, ts: Date.now() };
+    const address = await reverseGeocode(coords.lat, coords.lng);
+    note.textContent = "📍 Detected: " + address;
+    if (fromInput && !fromInput.value.trim()) fromInput.value = address;
+    if (planMap) { planMap.setView([coords.lat, coords.lng], 15); planMarker = L.circleMarker([coords.lat, coords.lng], { radius: 8, color: "#e11d3c", fillColor: "#e11d3c", fillOpacity: 0.9 }).addTo(planMap); }
+  } catch (err) {
+    State.currentGpsCoords = null;
+    note.textContent = "⚠️ " + gpsErrorMessage(err);
+    note.style.color = "var(--warn)";
+  }
 }
 
 async function handlePlanJourney(e) {
@@ -483,7 +521,11 @@ async function handlePlanJourney(e) {
   let coords = null;
   let isDemoJourney = State.demoMode;
 
-  if (!isDemoJourney) {
+  // Reuse the location already detected on this screen if it's fresh (<60s) —
+  // avoids asking the OS for GPS twice, but always re-checks if it's gone stale.
+  if (!isDemoJourney && State.currentGpsCoords && Date.now() - State.currentGpsCoords.ts < 60000) {
+    coords = State.currentGpsCoords;
+  } else if (!isDemoJourney) {
     try { coords = await getCurrentPosition(); }
     catch (err) {
       btn.disabled = false; btn.textContent = t("startJourney");
@@ -527,14 +569,23 @@ async function handlePlanJourney(e) {
   showScreen("journey-started");
 }
 
+// GPS failed at submit time — no silent fallback. The person must either
+// retry GPS or explicitly tick a box acknowledging Demo Mode before that
+// option is even clickable, so it can't be tapped by accident.
 function showGpsBlockedModal(message, form) {
   document.getElementById("gpsBlockedMessage").textContent = message;
+  const checkbox = document.getElementById("gpsDemoConfirmCheckbox");
+  const demoBtn = document.getElementById("gpsDemoBtn");
+  checkbox.checked = false;
+  demoBtn.disabled = true;
+  checkbox.onchange = () => { demoBtn.disabled = !checkbox.checked; };
   document.getElementById("gps-blocked-modal").classList.remove("hidden");
   document.getElementById("gpsRetryBtn").onclick = () => {
     document.getElementById("gps-blocked-modal").classList.add("hidden");
     handlePlanJourney({ preventDefault(){}, target: form });
   };
-  document.getElementById("gpsDemoBtn").onclick = () => {
+  demoBtn.onclick = () => {
+    if (!checkbox.checked) return;
     document.getElementById("gps-blocked-modal").classList.add("hidden");
     State.demoMode = true;
     handlePlanJourney({ preventDefault(){}, target: form });
@@ -828,17 +879,57 @@ async function sendSOS() {
   showScreen("sos-active");
 }
 
-// Send SOS Location — a ONE-TIME location snapshot to the trusted contact. Does NOT raise an SOS alert.
+// ------------------------------------------------------------
+// WhatsApp / SMS helpers — one tap to open with the message ready.
+// No website can silently send a WhatsApp/SMS message without the
+// person tapping Send themselves; that's a platform security rule,
+// not something this app can bypass.
+// ------------------------------------------------------------
+function toWaDigits(num) { return (num || "").replace(/[^\d]/g, ""); }
+function shareViaWhatsApp(text, num) {
+  const digits = toWaDigits(num);
+  const url = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, "_blank");
+}
+function shareViaSMS(text, num) {
+  if (!num) { toast("No trusted contact number saved. Add one in Profile → Emergency Contacts."); return; }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  window.location.href = `sms:${num}${isIOS ? "&" : "?"}body=${encodeURIComponent(text)}`;
+}
+
+// Small reusable share sheet: WhatsApp / SMS (targeted at the saved
+// trusted contact) / More (native OS share) / Copy link.
+let pendingShareText = "", pendingShareUrl = "";
+function openShareSheet(text, url) {
+  pendingShareText = text; pendingShareUrl = url;
+  const num = getTrustedContactNumber();
+  document.getElementById("shareSheetContactNote").textContent = num
+    ? `Sending to your primary contact: ${num}`
+    : "No trusted contact saved yet — add one in Profile, or use More to pick any app.";
+  document.getElementById("share-sheet-modal").classList.remove("hidden");
+}
+function closeShareSheet() { document.getElementById("share-sheet-modal").classList.add("hidden"); }
+function shareSheetWhatsApp() { closeShareSheet(); shareViaWhatsApp(`${pendingShareText} ${pendingShareUrl}`, getTrustedContactNumber()); }
+function shareSheetSMS() { closeShareSheet(); shareViaSMS(`${pendingShareText} ${pendingShareUrl}`, getTrustedContactNumber()); }
+async function shareSheetMore() {
+  closeShareSheet();
+  if (navigator.share) { try { await navigator.share({ text: pendingShareText, url: pendingShareUrl }); return; } catch (e) {} }
+  try { await navigator.clipboard.writeText(`${pendingShareText} ${pendingShareUrl}`); toast(t("shareLinkCopied")); }
+  catch (e) { toast(`${pendingShareText} ${pendingShareUrl}`); }
+}
+async function shareSheetCopy() {
+  closeShareSheet();
+  try { await navigator.clipboard.writeText(`${pendingShareText} ${pendingShareUrl}`); toast(t("shareLinkCopied")); }
+  catch (e) { toast(`${pendingShareText} ${pendingShareUrl}`); }
+}
+
+// Send SOS Location — a ONE-TIME location snapshot. Does NOT raise an SOS alert.
 async function sendSosLocationOnly() {
   let coords;
   try { coords = await getCurrentPosition(); } catch (err) { toast(gpsErrorMessage(err)); return; }
   const mapsUrl = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
   if (State.activeJourney) await SafetyEvents.log(State.activeJourney.id, State.session.user.id, "location_shared", { type: "one_time", url: mapsUrl });
-  if (navigator.share) {
-    try { await navigator.share({ title: "My current location", text: "Here's my current location — Raksha Ride", url: mapsUrl }); return; } catch (e) {}
-  }
-  try { await navigator.clipboard.writeText(mapsUrl); toast(t("shareLinkCopied")); }
-  catch (e) { toast(mapsUrl); }
+  openShareSheet(`📍 My current location — ${State.profile?.full_name || ""}:`, mapsUrl);
 }
 
 // Share Live Location — creates a continuously-updated share link (separate from SOS).
@@ -848,11 +939,7 @@ async function shareLiveLocation() {
   if (error) { toast(error.message); return; }
   const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.token}`;
   await SafetyEvents.log(State.activeJourney.id, State.session.user.id, "location_shared", { type: "live", token: data.token });
-  if (navigator.share) {
-    try { await navigator.share({ title: "Track my journey live", text: "Follow my live location on Raksha Ride", url: shareUrl }); return; } catch (e) {}
-  }
-  try { await navigator.clipboard.writeText(shareUrl); toast(t("shareLinkCopied")); }
-  catch (e) { toast(shareUrl); }
+  openShareSheet(`🛡️ Track my live location on Raksha Ride — ${State.profile?.full_name || ""}:`, shareUrl);
 }
 
 function callNumber(num) {
@@ -877,6 +964,8 @@ function stopAlarmSound() {
   if (alarmAudioCtx) { alarmAudioCtx.close(); alarmAudioCtx = null; }
   document.getElementById("alarmActiveNote").classList.add("hidden");
 }
+
+// Listens for a trigger phrase and raises the normal SOS (unchanged).
 function startVoiceSos() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) { toast("Voice recognition not supported on this browser. Use the SOS button."); return; }
@@ -890,6 +979,73 @@ function startVoiceSos() {
   recog.start();
   toast("Listening...");
 }
+
+// ------------------------------------------------------------
+// VOICE / VIDEO SOS — records a short clip and sends it toward WhatsApp.
+// Real file attachment works via the phone's native share sheet
+// (tap WhatsApp there) where supported; otherwise the clip is
+// uploaded and a WhatsApp message with the link opens automatically.
+// ------------------------------------------------------------
+let mediaRecorder = null, recordedChunks = [];
+const RECORD_MS = 10000;
+
+async function recordAndShare(kind) {
+  const noteId = kind === "video" ? "videoSosRecordingNote" : "voiceSosRecordingNote";
+  const noteEl = document.getElementById(noteId);
+  try {
+    const constraints = kind === "video" ? { video: { facingMode: "user" }, audio: true } : { audio: true };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    recordedChunks = [];
+    const preferredType = kind === "video" ? "video/webm;codecs=vp8,opus" : "audio/webm";
+    const mimeType = (window.MediaRecorder && MediaRecorder.isTypeSupported(preferredType)) ? preferredType : "";
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    const stopped = new Promise(resolve => { mediaRecorder.onstop = resolve; });
+    mediaRecorder.start();
+    if (noteEl) noteEl.classList.remove("hidden");
+    toast(kind === "video" ? "Recording 10s video SOS…" : "Recording 10s voice SOS…");
+    await new Promise(r => setTimeout(r, RECORD_MS));
+    mediaRecorder.stop();
+    await stopped;
+    stream.getTracks().forEach(tr => tr.stop());
+    if (noteEl) noteEl.classList.add("hidden");
+    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || (kind === "video" ? "video/webm" : "audio/webm") });
+    await shareRecordedBlob(blob, kind);
+  } catch (err) {
+    if (noteEl) noteEl.classList.add("hidden");
+    toast(`Couldn't access your ${kind === "video" ? "camera" : "microphone"}. Check browser permissions and try again.`);
+  }
+}
+
+async function shareRecordedBlob(blob, kind) {
+  const filename = `${kind}-sos-${Date.now()}.webm`;
+  const file = new File([blob], filename, { type: blob.type });
+  const label = kind === "video" ? "Video" : "Voice";
+
+  // Preferred path: native share sheet — attaches the REAL file, user picks WhatsApp.
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: `${label} SOS`, text: `🆘 ${label} SOS from ${State.profile?.full_name || "Raksha Ride"}` });
+      if (State.activeJourney) await SafetyEvents.log(State.activeJourney.id, State.session.user.id, "sos_triggered", { type: `${kind}_sos_shared` });
+      return;
+    } catch (e) { /* cancelled — fall through to link-based sharing */ }
+  }
+
+  // Fallback: upload to Supabase Storage, then open WhatsApp with a link to it.
+  toast("Uploading recording…");
+  const path = `${State.session.user.id}/${filename}`;
+  const { error } = await Media.upload(file, path);
+  if (error) { toast(`Couldn't upload the recording: ${error.message}`); return; }
+  const url = Media.getPublicUrl(path);
+  if (State.activeJourney) await SafetyEvents.log(State.activeJourney.id, State.session.user.id, "sos_triggered", { type: `${kind}_sos_shared`, url });
+  const num = getTrustedContactNumber();
+  const msg = `🆘 ${label} SOS from ${State.profile?.full_name || "me"} —`;
+  if (num) shareViaWhatsApp(`${msg} ${url}`, num);
+  else openShareSheet(msg, url);
+}
+function recordVoiceSos() { recordAndShare("audio"); }
+function recordVideoSos() { recordAndShare("video"); }
+
 
 // ------------------------------------------------------------
 // 15. RATING / INCIDENT REPORT (error-checked, no silent defaults)
