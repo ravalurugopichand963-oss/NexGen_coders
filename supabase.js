@@ -198,6 +198,19 @@ const Incidents = {
 // ------------------------------------------------------------
 // ADMIN AGGREGATES
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// MEDIA (Supabase Storage) — for Voice/Video SOS clips
+// ------------------------------------------------------------
+const Media = {
+  async upload(file, path) {
+    return await sb.storage.from("sos-media").upload(path, file, { contentType: file.type, upsert: true });
+  },
+  getPublicUrl(path) {
+    const { data } = sb.storage.from("sos-media").getPublicUrl(path);
+    return data.publicUrl;
+  }
+};
+
 const Admin = {
   async stats() {
     const [journeys, sos, incidents] = await Promise.all([
