@@ -194,6 +194,7 @@ const State = {
   lastMovementPos: null, lastMovementTime: null, lastGpsUpdateTime: null,
   deviationAlerted: false, stopAlerted: false, destinationReached: false,
   pendingAlert: null, activeSosId: null, gpsWatchdog: null,
+  emergencyContacts: [],
 };
 
 function t(key) { return (translations[State.lang] && translations[State.lang][key]) || translations.en[key] || key; }
@@ -346,6 +347,7 @@ async function refreshSession() {
     const { data: profile } = await Auth.getProfile(session.user.id);
     State.profile = profile;
     if (profile && profile.preferred_language) setLanguage(profile.preferred_language);
+    await refreshEmergencyContactsCache();
     routeByRole();
   } else showScreen("landing");
 }
@@ -981,27 +983,39 @@ async function saveProfile(e) {
   document.getElementById("greetingName").textContent = data.full_name;
   toast("Profile updated.");
 }
-async function loadEmergencyContacts() {
+// Keeps State.emergencyContacts in sync so the call buttons on the
+// Emergency/SOS screens (which can't await a query mid-tap) always
+// have an up-to-date number to dial.
+async function refreshEmergencyContactsCache() {
+  if (!State.session) return;
   const { data } = await EmergencyContacts.listFor(State.session.user.id);
+  State.emergencyContacts = data || [];
+}
+async function loadEmergencyContacts() {
+  await refreshEmergencyContactsCache();
   const box = document.getElementById("emergencyContactsList");
   box.innerHTML = "";
-  (data || []).forEach(c => {
+  State.emergencyContacts.forEach((c, i) => {
     const div = document.createElement("div");
     div.className = "card";
     div.innerHTML = `
-      <div class="row"><strong>${c.name}</strong><span class="small">${c.relation || ""}</span></div>
+      <div class="row"><strong>${c.name}</strong><span class="small">${i === 0 ? "★ Primary — " : ""}${c.relation || ""}</span></div>
       <div class="row mt"><span class="small">${c.phone}</span>
         <button class="btn-ghost" style="width:auto;padding:6px 12px" onclick="removeEmergencyContact('${c.id}')">✕</button>
       </div>`;
     box.appendChild(div);
   });
+  if (!State.emergencyContacts.length) {
+    box.innerHTML = `<p class="small center">No emergency contacts saved yet — add one below. The first one you add becomes your Primary and is who "Call Trusted Contact" dials.</p>`;
+  }
 }
 async function addEmergencyContact(e) {
   e.preventDefault();
   const f = e.target;
+  const phone = f.contactPhone.value.trim();
   const { error } = await EmergencyContacts.add({
     owner_id: State.session.user.id, name: f.contactName.value.trim(),
-    phone: f.contactPhone.value.trim(), relation: f.contactRelation.value.trim()
+    phone, relation: f.contactRelation.value.trim()
   });
   if (error) { toast(error.message); return; }
   f.reset();
@@ -1010,6 +1024,26 @@ async function addEmergencyContact(e) {
 async function removeEmergencyContact(id) {
   await EmergencyContacts.remove(id);
   loadEmergencyContacts();
+}
+
+// Best available number for "Call Trusted Contact": the Primary entry
+// from the Emergency Contacts list, falling back to whatever was
+// entered at registration if nothing's been added there yet.
+function getTrustedContactNumber() {
+  if (State.emergencyContacts && State.emergencyContacts.length) return State.emergencyContacts[0].phone;
+  if (State.profile && State.profile.emergency_contact) return State.profile.emergency_contact;
+  if (State.profile && State.profile.guardian_phone) return State.profile.guardian_phone;
+  return "";
+}
+function callTrustedContact() {
+  const num = getTrustedContactNumber();
+  if (!num) {
+    toast("No emergency contact saved yet. Add one in Profile → Emergency Contacts.");
+    showScreen("profile");
+    loadProfileScreen();
+    return;
+  }
+  callNumber(num);
 }
 
 // ------------------------------------------------------------
