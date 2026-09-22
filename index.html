@@ -164,8 +164,9 @@
       <h2 data-i18n="journey">Journey</h2><span></span>
     </div>
     <div class="map-box"><div id="plan-map" style="height:100%"></div></div>
+    <p id="detectedLocationNote" class="small mt">Detecting your exact location…</p>
     <form id="planForm">
-      <label data-i18n="from">From</label><input name="from" required placeholder="Your current area" value="Current Location">
+      <label data-i18n="from">From</label><input name="from" required placeholder="Your current area">
       <label data-i18n="to">To</label><input name="to" required placeholder="e.g. Kadapa Bus Stand">
       <button type="submit" class="btn-primary mt" data-i18n="startJourney">Start Journey</button>
     </form>
@@ -175,10 +176,12 @@
   <div id="gps-blocked-modal" class="card card-glow hidden" style="position:fixed;bottom:100px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;z-index:90">
     <span class="status-pill status-warn">⚠️ Location needed</span>
     <p class="mt small" id="gpsBlockedMessage">We couldn't get your real location.</p>
-    <div class="btn-row mt">
-      <button class="btn-primary" id="gpsRetryBtn" data-i18n="tryGpsAgain">Try GPS Again</button>
-      <button class="btn-secondary" id="gpsDemoBtn" data-i18n="continueDemo">Continue in Demo Mode</button>
-    </div>
+    <button class="btn-primary mt" id="gpsRetryBtn" data-i18n="tryGpsAgain">Try GPS Again</button>
+    <label class="row mt" style="align-items:flex-start;gap:10px;cursor:pointer">
+      <input type="checkbox" id="gpsDemoConfirmCheckbox" style="width:auto;margin-top:3px">
+      <span class="small">I understand this is a sample location, not my real GPS, and this journey will be tagged DEMO.</span>
+    </label>
+    <button class="btn-secondary mt" id="gpsDemoBtn" data-i18n="continueDemo" disabled>Continue in Demo Mode</button>
   </div>
 
   <!-- ============ JOURNEY STARTED ============ -->
@@ -275,8 +278,30 @@
       <button class="btn-secondary" onclick="showScreen('nearby-help')">🚓 <span data-i18n="findPolice">Find Police</span></button>
       <button class="btn-secondary" onclick="showScreen('nearby-help')">🏥 <span data-i18n="findHospital">Find Hospital</span></button>
     </div>
-    <button class="btn-ghost" onclick="startVoiceSos()">🎙️ Voice SOS ("help me")</button>
+    <button class="btn-ghost mb" onclick="startVoiceSos()">🎙️ Voice SOS trigger ("help me")</button>
+
+    <div class="divider"></div>
+    <p class="small mb">Record and send a real clip toward WhatsApp — attaches directly where supported, otherwise sends a link.</p>
+    <div class="btn-row mb">
+      <button class="btn-secondary" onclick="recordVoiceSos()">🎙️ Voice SOS → WhatsApp</button>
+      <button class="btn-secondary" onclick="recordVideoSos()">📹 Video SOS → WhatsApp</button>
+    </div>
+    <p id="voiceSosRecordingNote" class="small center hidden">🔴 Recording voice… hold still</p>
+    <p id="videoSosRecordingNote" class="small center hidden">🔴 Recording video… hold still</p>
   </section>
+
+  <!-- ---- Share sheet (location / recordings) ---- -->
+  <div id="share-sheet-modal" class="card card-glow hidden" style="position:fixed;bottom:100px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;z-index:90">
+    <div class="row"><h2>Share</h2><button class="icon-btn" onclick="closeShareSheet()">✕</button></div>
+    <p class="small mt" id="shareSheetContactNote">—</p>
+    <button class="btn-safe mt" onclick="shareSheetWhatsApp()">🟢 Send via WhatsApp</button>
+    <button class="btn-secondary mt" onclick="shareSheetSMS()">💬 Send via SMS</button>
+    <div class="btn-row mt">
+      <button class="btn-ghost" onclick="shareSheetCopy()">Copy Link</button>
+      <button class="btn-ghost" onclick="shareSheetMore()">More…</button>
+    </div>
+  </div>
+
 
   <!-- ============ SOS ACTIVE ============ -->
   <section id="sos-active" class="screen">
